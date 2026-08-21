@@ -43,6 +43,10 @@ class InputError(ValueError):
     pass
 
 
+class ContentSafetyError(RuntimeError):
+    pass
+
+
 def _https_url(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise InputError(f"{field} is required")
@@ -137,6 +141,18 @@ def _upload(path: Path, upload: Any, media_type: str) -> str:
     return key
 
 
+def _validate_target_content(target_path: Path, media_type: str) -> None:
+    if media_type != "image":
+        return
+
+    from facefusion import content_analyser
+
+    if content_analyser.analyse_image(str(target_path)):
+        raise ContentSafetyError(
+            "Target media did not pass FaceFusion's content safety check."
+        )
+
+
 def _run_swap(job_input: dict[str, Any]) -> dict[str, Any]:
     media_type = job_input.get("media_type")
     if media_type not in {"image", "video"}:
@@ -193,6 +209,7 @@ def _run_swap(job_input: dict[str, Any]) -> dict[str, Any]:
             "target",
             MAX_VIDEO_BYTES if media_type == "video" else MAX_IMAGE_BYTES,
         )
+        _validate_target_content(target_path, media_type)
         output_path = temp_dir / ("output.mp4" if media_type == "video" else "output.jpg")
         jobs_path = temp_dir / "jobs"
         jobs_path.mkdir()
@@ -332,6 +349,12 @@ def handler(event: dict[str, Any]) -> dict[str, Any]:
             "status": "failed",
             "error": "media transfer failed",
             "error_type": "transfer",
+        }
+    except ContentSafetyError as error:
+        return {
+            "status": "failed",
+            "error": str(error),
+            "error_type": "content",
         }
     except subprocess.TimeoutExpired:
         return {
