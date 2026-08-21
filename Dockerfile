@@ -23,8 +23,23 @@ RUN git clone --branch "${FACEFUSION_VERSION}" --depth 1 \
     && python install.py cuda@12 --skip-conda \
     && pip install --no-cache-dir "runpod==1.7.13" "requests==2.32.5"
 
-# Bake the lite model set into the image so workers do not download weights per cold start.
-RUN python facefusion.py force-download --download-scope lite
+# Bake only the models used by the face-swap pipeline. `force-download` also
+# fetches models for unrelated processors, producing an unnecessarily large
+# serverless image and much slower cold starts.
+RUN curl -fsSL \
+      https://github.com/facefusion/facefusion-assets/releases/download/examples-3.0.0/source.jpg \
+      -o /tmp/source.jpg \
+    && curl -fsSL \
+      https://github.com/facefusion/facefusion-assets/releases/download/examples-3.0.0/target-240p.mp4 \
+      -o /tmp/target.mp4 \
+    && ffmpeg -loglevel error -i /tmp/target.mp4 -frames:v 1 /tmp/target.jpg \
+    && python facefusion.py headless-run \
+      --processors face_swapper \
+      --execution-providers cpu \
+      --source-paths /tmp/source.jpg \
+      --target-path /tmp/target.jpg \
+      --output-path /tmp/output.jpg \
+    && rm -f /tmp/source.jpg /tmp/target.mp4 /tmp/target.jpg /tmp/output.jpg
 
 COPY handler.py /handler.py
 
