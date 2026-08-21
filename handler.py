@@ -208,7 +208,7 @@ def _configure_detection() -> None:
         "face_detector_size": "640x640",
         "face_detector_margin": (0, 0, 0, 0),
         "face_detector_score": 0.5,
-        "face_landmarker_model": "many",
+        "face_landmarker_model": "2dfan4",
         "face_landmarker_score": 0.5,
     }
     for key, value in settings.items():
