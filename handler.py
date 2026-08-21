@@ -5,6 +5,7 @@ import binascii
 import os
 import subprocess
 import tempfile
+import traceback
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -43,22 +44,39 @@ def _https_url(value: Any, field: str) -> str:
     return value.strip()
 
 
+def _extension_from_magic(data: bytes) -> str | None:
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return ".webp"
+    if len(data) >= 12 and data[4:8] == b"ftyp":
+        return ".mp4"
+    return None
+
+
 def _download(url: str, directory: Path, stem: str, max_bytes: int) -> Path:
     with requests.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT) as response:
         response.raise_for_status()
         content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-        extension = CONTENT_TYPE_EXTENSIONS.get(content_type)
-        if not extension:
-            raise InputError(f"unsupported media type for {stem}: {content_type or 'unknown'}")
-
         content_length = response.headers.get("content-length")
         if content_length and int(content_length) > max_bytes:
             raise InputError(f"{stem} exceeds the size limit")
 
+        chunks = response.iter_content(chunk_size=1024 * 1024)
+        first_chunk = next(chunks, b"")
+        extension = CONTENT_TYPE_EXTENSIONS.get(content_type) or _extension_from_magic(first_chunk)
+        if not extension:
+            raise InputError(f"unsupported media type for {stem}: {content_type or 'unknown'}")
+
         path = directory / f"{stem}{extension}"
-        size = 0
+        size = len(first_chunk)
+        if size > max_bytes:
+            raise InputError(f"{stem} exceeds the size limit")
         with path.open("wb") as output:
-            for chunk in response.iter_content(chunk_size=1024 * 1024):
+            output.write(first_chunk)
+            for chunk in chunks:
                 if not chunk:
                     continue
                 size += len(chunk)
@@ -273,6 +291,7 @@ def handler(event: dict[str, Any]) -> dict[str, Any]:
             "error_type": "timeout",
         }
     except Exception:
+        traceback.print_exc()
         return {
             "status": "failed",
             "error": "FaceFusion processing failed",
