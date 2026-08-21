@@ -30,6 +30,11 @@ to a caller-provided signed upload URL.
 so a selected thumbnail index maps to `face_index`. Detection is available with
 `{"operation":"detect","target_url":"..."}` or a `frame_data_url`.
 
+For multi-face jobs, pass `face_mappings` with one distinct source URL per target
+face, for example `[{"face_index":0,"source_url":"https://..."}]`. The worker
+processes each assignment against the same image or video job in left-to-right
+face order.
+
 `face_swapper_model` is allowlisted to `hyperswap_1a_256`, `ghost_1_256`, and
 `ghost_3_256`. If omitted, the worker uses `hyperswap_1a_256`. The Docker image
 preloads all three models to avoid downloading model weights during a job.

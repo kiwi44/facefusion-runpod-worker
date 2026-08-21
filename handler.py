@@ -144,6 +144,28 @@ def _run_swap(job_input: dict[str, Any]) -> dict[str, Any]:
 
     source_url = _https_url(job_input.get("source_url"), "source_url")
     target_url = _https_url(job_input.get("target_url"), "target_url")
+    raw_face_mappings = job_input.get("face_mappings")
+    face_mappings: list[tuple[int, str]] = []
+    if raw_face_mappings is not None:
+        if not isinstance(raw_face_mappings, list) or not 1 <= len(raw_face_mappings) <= 20:
+            raise InputError("face_mappings must contain 1 to 20 assignments")
+        seen_face_indexes: set[int] = set()
+        for position, mapping in enumerate(raw_face_mappings):
+            if not isinstance(mapping, dict):
+                raise InputError("each face mapping must be an object")
+            mapping_face_index = mapping.get("face_index")
+            if (
+                not isinstance(mapping_face_index, int)
+                or mapping_face_index < 0
+                or mapping_face_index > 20
+                or mapping_face_index in seen_face_indexes
+            ):
+                raise InputError("each face mapping needs a unique face_index from 0 to 20")
+            seen_face_indexes.add(mapping_face_index)
+            mapping_source_url = _https_url(
+                mapping.get("source_url"), f"face_mappings[{position}].source_url"
+            )
+            face_mappings.append((mapping_face_index, mapping_source_url))
     face_mode = job_input.get("face_mode", "one")
     if face_mode not in {"one", "reference", "many"}:
         raise InputError("face_mode must be one, reference, or many")
@@ -165,7 +187,6 @@ def _run_swap(job_input: dict[str, Any]) -> dict[str, Any]:
 
     with tempfile.TemporaryDirectory(prefix="facefusion-") as temp_name:
         temp_dir = Path(temp_name)
-        source_path = _download(source_url, temp_dir, "source", MAX_IMAGE_BYTES)
         target_path = _download(
             target_url,
             temp_dir,
@@ -176,48 +197,62 @@ def _run_swap(job_input: dict[str, Any]) -> dict[str, Any]:
         jobs_path = temp_dir / "jobs"
         jobs_path.mkdir()
 
-        command = [
-            "python",
-            "facefusion.py",
-            "headless-run",
-            "--jobs-path",
-            str(jobs_path),
-            "--processors",
-            "face_swapper",
-            "--face-swapper-model",
-            face_swapper_model,
-            "--execution-providers",
-            "cuda",
-            "--source-paths",
-            str(source_path),
-            "--target-path",
-            str(target_path),
-            "--output-path",
-            str(output_path),
-            "--face-selector-mode",
-            face_mode,
-            "--face-selector-order",
-            "left-right",
-            "--reference-face-position",
-            str(face_index),
-            "--reference-frame-number",
-            str(reference_frame_number),
-            "--log-level",
-            "warn",
-        ]
-        if media_type == "video":
-            command.extend(["--output-video-preset", "veryfast"])
+        passes = face_mappings or [(face_index, source_url)]
+        current_target_path = target_path
+        for pass_index, (mapped_face_index, mapped_source_url) in enumerate(passes):
+            source_path = _download(
+                mapped_source_url, temp_dir, f"source-{pass_index}", MAX_IMAGE_BYTES
+            )
+            is_last_pass = pass_index == len(passes) - 1
+            pass_output_path = (
+                output_path
+                if is_last_pass
+                else temp_dir
+                / (f"pass-{pass_index}.mp4" if media_type == "video" else f"pass-{pass_index}.jpg")
+            )
+            command = [
+                "python",
+                "facefusion.py",
+                "headless-run",
+                "--jobs-path",
+                str(jobs_path),
+                "--processors",
+                "face_swapper",
+                "--face-swapper-model",
+                face_swapper_model,
+                "--execution-providers",
+                "cuda",
+                "--source-paths",
+                str(source_path),
+                "--target-path",
+                str(current_target_path),
+                "--output-path",
+                str(pass_output_path),
+                "--face-selector-mode",
+                "reference" if face_mappings else face_mode,
+                "--face-selector-order",
+                "left-right",
+                "--reference-face-position",
+                str(mapped_face_index),
+                "--reference-frame-number",
+                str(reference_frame_number),
+                "--log-level",
+                "warn",
+            ]
+            if media_type == "video":
+                command.extend(["--output-video-preset", "veryfast"])
 
-        completed = subprocess.run(
-            command,
-            cwd=FACEFUSION_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=60 * 45,
-        )
-        if completed.returncode != 0 or not output_path.is_file():
-            detail = (completed.stderr or completed.stdout or "unknown error")[-2000:]
-            raise RuntimeError(f"FaceFusion failed: {detail}")
+            completed = subprocess.run(
+                command,
+                cwd=FACEFUSION_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=60 * 45,
+            )
+            if completed.returncode != 0 or not pass_output_path.is_file():
+                detail = (completed.stderr or completed.stdout or "unknown error")[-2000:]
+                raise RuntimeError(f"FaceFusion failed: {detail}")
+            current_target_path = pass_output_path
 
         output_key = _upload(output_path, job_input.get("output_upload"), media_type)
         return {
