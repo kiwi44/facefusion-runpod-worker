@@ -13,6 +13,7 @@ import handler
 def test_validate_target_content_allows_safe_image(monkeypatch):
     analyser = SimpleNamespace(analyse_image=lambda _path: False)
     monkeypatch.setitem(sys.modules, "facefusion", SimpleNamespace(content_analyser=analyser))
+    monkeypatch.setattr(handler, "_configure_detection", lambda: None)
 
     handler._validate_target_content(Path("target.jpg"), "image")
 
@@ -20,6 +21,7 @@ def test_validate_target_content_allows_safe_image(monkeypatch):
 def test_validate_target_content_rejects_flagged_image(monkeypatch):
     analyser = SimpleNamespace(analyse_image=lambda _path: True)
     monkeypatch.setitem(sys.modules, "facefusion", SimpleNamespace(content_analyser=analyser))
+    monkeypatch.setattr(handler, "_configure_detection", lambda: None)
 
     try:
         handler._validate_target_content(Path("target.jpg"), "image")

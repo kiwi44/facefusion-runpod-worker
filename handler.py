@@ -145,6 +145,7 @@ def _validate_target_content(target_path: Path, media_type: str) -> None:
     if media_type != "image":
         return
 
+    _configure_detection()
     from facefusion import content_analyser
 
     if content_analyser.analyse_image(str(target_path)):
