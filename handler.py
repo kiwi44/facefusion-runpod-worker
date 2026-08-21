@@ -4,6 +4,7 @@ import base64
 import binascii
 import os
 import subprocess
+import sys
 import tempfile
 import traceback
 from pathlib import Path
@@ -15,6 +16,7 @@ import runpod
 
 
 FACEFUSION_ROOT = Path(os.getenv("FACEFUSION_ROOT", "/facefusion"))
+sys.path.insert(0, str(FACEFUSION_ROOT))
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
 MAX_VIDEO_BYTES = 100 * 1024 * 1024
 DOWNLOAD_TIMEOUT = (15, 180)
