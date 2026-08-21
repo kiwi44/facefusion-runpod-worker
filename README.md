@@ -15,6 +15,7 @@ to a caller-provided signed upload URL.
     "target_url": "https://example.com/private-target.mp4",
     "face_mode": "reference",
     "face_index": 0,
+    "face_swapper_model": "ghost_1_256",
     "reference_frame_number": 0,
     "output_upload": {
       "url": "https://example.com/signed-upload",
@@ -28,6 +29,10 @@ to a caller-provided signed upload URL.
 `face_mode` can be `one`, `reference`, or `many`. Faces are ordered left-to-right,
 so a selected thumbnail index maps to `face_index`. Detection is available with
 `{"operation":"detect","target_url":"..."}` or a `frame_data_url`.
+
+`face_swapper_model` is allowlisted to `hyperswap_1a_256`, `ghost_1_256`, and
+`ghost_3_256`. If omitted, the worker uses `hyperswap_1a_256`. The Docker image
+preloads all three models to avoid downloading model weights during a job.
 
 The endpoint must be called through Runpod's authenticated `/run` or `/runsync`
 API. Keep minimum workers at zero outside active testing to avoid idle GPU cost.

@@ -35,11 +35,26 @@ RUN curl -fsSL \
     && ffmpeg -loglevel error -i /tmp/target.mp4 -frames:v 1 /tmp/target.jpg \
     && python facefusion.py headless-run \
       --processors face_swapper \
+      --face-swapper-model hyperswap_1a_256 \
       --execution-providers cpu \
       --source-paths /tmp/source.jpg \
       --target-path /tmp/target.jpg \
-      --output-path /tmp/output.jpg \
-    && rm -f /tmp/source.jpg /tmp/target.mp4 /tmp/target.jpg /tmp/output.jpg
+      --output-path /tmp/output-hyperswap.jpg \
+    && python facefusion.py headless-run \
+      --processors face_swapper \
+      --face-swapper-model ghost_1_256 \
+      --execution-providers cpu \
+      --source-paths /tmp/source.jpg \
+      --target-path /tmp/target.jpg \
+      --output-path /tmp/output-ghost-1.jpg \
+    && python facefusion.py headless-run \
+      --processors face_swapper \
+      --face-swapper-model ghost_3_256 \
+      --execution-providers cpu \
+      --source-paths /tmp/source.jpg \
+      --target-path /tmp/target.jpg \
+      --output-path /tmp/output-ghost-3.jpg \
+    && rm -f /tmp/source.jpg /tmp/target.mp4 /tmp/target.jpg /tmp/output-*.jpg
 
 COPY handler.py /handler.py
 

@@ -32,6 +32,12 @@ CONTENT_TYPE_EXTENSIONS = {
     "video/webm": ".webm",
 }
 
+FACE_SWAPPER_MODELS = {
+    "hyperswap_1a_256",
+    "ghost_1_256",
+    "ghost_3_256",
+}
+
 
 class InputError(ValueError):
     pass
@@ -142,6 +148,10 @@ def _run_swap(job_input: dict[str, Any]) -> dict[str, Any]:
     if face_mode not in {"one", "reference", "many"}:
         raise InputError("face_mode must be one, reference, or many")
 
+    face_swapper_model = job_input.get("face_swapper_model", "hyperswap_1a_256")
+    if face_swapper_model not in FACE_SWAPPER_MODELS:
+        raise InputError("face_swapper_model is not supported")
+
     face_index = job_input.get("face_index", 0)
     reference_frame_number = job_input.get("reference_frame_number", 0)
     if not isinstance(face_index, int) or face_index < 0 or face_index > 20:
@@ -174,6 +184,8 @@ def _run_swap(job_input: dict[str, Any]) -> dict[str, Any]:
             str(jobs_path),
             "--processors",
             "face_swapper",
+            "--face-swapper-model",
+            face_swapper_model,
             "--execution-providers",
             "cuda",
             "--source-paths",
