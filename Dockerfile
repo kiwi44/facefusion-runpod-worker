@@ -21,7 +21,7 @@ RUN apt-get update \
 RUN git clone --branch "${FACEFUSION_VERSION}" --depth 1 \
       https://github.com/facefusion/facefusion.git . \
     && python install.py cuda@12 --skip-conda \
-    && pip install --no-cache-dir "runpod==1.7.13" "requests==2.32.5"
+    && pip install --no-cache-dir "runpod==1.7.13" "requests==2.33.0"
 
 # Bake only the models used by the face-swap pipeline. `force-download` also
 # fetches models for unrelated processors, producing an unnecessarily large
